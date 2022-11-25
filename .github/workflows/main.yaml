@@ -1,0 +1,46 @@
+name: 머신러닝 모델이 패키징된 도커 컨테이너 이미지를 빌드하고 도커 허브 레지스트리에 푸시한다.
+
+on:
+  # 메인 브랜치에 푸시되거나 풀 리퀘스트가 발생했을 때 워크플로가 실행됨
+  push:
+    branches: [ main ]
+  
+  # 깃허브의 ‘액션’ 탭을 통해 워크플로를 직접 실행할 수 있도록 허용함
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: 체크아웃
+        uses: actions/checkout@v2
+
+      - name: 애저 인증
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: 애저 확장 설치 및 사용자 입력 대기모드 방지 설정
+        run: |
+          az --version
+          az config set extension.use_dynamic_install=yes_without_prompt
+          az extension add -n ml
+
+      - name: 모델 복원
+        run: |
+          az ml model download \
+            --resource-group Practical-MLOps-Chapter4 \
+            --workspace-name Practical-MLOps-Chapter4 \
+            --name RoBERTa-SequenceClassification \
+            --version 1 \
+            --download-path ./webapp
+
+      - name: 컨테이너 빌드 후 도커 허브와 깃허브 레지스트리로 동시에 푸시
+        uses: docker/build-push-action@v2
+        with:
+          context: ./
+          file: ./Dockerfile
+          push: false
+          tags: flask-docker-onnx-azure:v1
